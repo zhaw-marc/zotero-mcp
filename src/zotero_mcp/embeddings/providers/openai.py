@@ -53,14 +53,21 @@ class OpenAIEmbeddingFunction(RemoteEmbeddingFunction):
     # little conservatively, while underestimating it earns 429s.
     chars_per_token = 3
 
-    def __init__(self, model_name: str = "text-embedding-3-small", api_key: str | None = None,
-                 base_url: str | None = None, request_batch_size: int | None = None,
-                 rate_limit_rps: float | None = None,
-                 max_parallel_requests: int | None = None,
-                 max_retries: int | None = None,
-                 tokens_per_minute: float | None = None,
-                 dimensions: int | None = None):
+    def __init__(
+        self,
+        model_name: str = "text-embedding-3-small",
+        api_key: str | None = None,
+        base_url: str | None = None,
+        request_batch_size: int | None = None,
+        rate_limit_rps: float | None = None,
+        max_parallel_requests: int | None = None,
+        max_retries: int | None = None,
+        tokens_per_minute: float | None = None,
+        dimensions: int | None = None,
+    ):
         import threading
+
+        resolved_base_url = base_url or os.getenv("OPENAI_BASE_URL")
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         self._rate_lock = threading.Lock()
         self._last_request_ts: float = 0.0
@@ -70,11 +77,19 @@ class OpenAIEmbeddingFunction(RemoteEmbeddingFunction):
         # 3072). None = use the model's default full dimensionality.
         self.dimensions: int | None = int(dimensions) if dimensions else None
         if not self.api_key:
-            raise ValueError("OpenAI API key is required")
+            if resolved_base_url:
+                # Self-hosted providers (vLLM, LM Studio, LocalAI, …) typically
+                # don't require authentication. The SDK needs a non-empty string
+                # but never validates it client-side; "no-key" is the conventional
+                # placeholder and is simply forwarded in the Authorization header,
+                # where most self-hosted servers ignore it.
+                self.api_key = "no-key"
+            else:
+                raise ValueError("OpenAI API key is required")
 
         self._init_common(
             model_name=model_name,
-            base_url=base_url or os.getenv("OPENAI_BASE_URL"),
+            base_url=resolved_base_url,
             request_batch_size=request_batch_size,
             rate_limit_rps=rate_limit_rps,
             max_parallel_requests=max_parallel_requests,
@@ -84,6 +99,7 @@ class OpenAIEmbeddingFunction(RemoteEmbeddingFunction):
 
         try:
             import openai
+
             client_kwargs = {"api_key": self.api_key}
             if self.base_url:
                 client_kwargs["base_url"] = self.base_url
@@ -150,6 +166,7 @@ class OpenAIEmbeddingFunction(RemoteEmbeddingFunction):
         if not rps or rps <= 0:
             return
         import time
+
         with self._rate_lock:
             min_interval = 1.0 / rps
             wait = min_interval - (time.monotonic() - self._last_request_ts)
@@ -239,7 +256,8 @@ class OpenAIEmbeddingFunction(RemoteEmbeddingFunction):
             return text
         try:
             import tiktoken
-            if not hasattr(self, '_tokenizer'):
+
+            if not hasattr(self, "_tokenizer"):
                 self._tokenizer = tiktoken.get_encoding("cl100k_base")
             tokens = self._tokenizer.encode(text, disallowed_special=())
             if len(tokens) > max_tokens:
