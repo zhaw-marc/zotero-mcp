@@ -12,6 +12,7 @@ from fastmcp import FastMCP
 
 from zotero_mcp._context import sync_context
 from zotero_mcp._version import __version__
+from zotero_mcp.client import is_local_zotero_available
 from zotero_mcp.utils import is_local_mode
 
 # Configure logging from environment variable
@@ -85,6 +86,13 @@ async def server_lifespan(server: FastMCP):
     simply resumes on the next startup.
     """
     sys.stderr.write("Starting Zotero MCP server...\n")
+
+    if is_local_mode() and not is_local_zotero_available():
+        sys.stderr.write(
+            "Warning: ZOTERO_LOCAL=true but Zotero is not reachable on "
+            "localhost:23119. Start Zotero and enable Settings → Advanced → "
+            "'Allow other applications on this computer to communicate with Zotero'.\n"
+        )
 
     async def _background_update():
         try:
