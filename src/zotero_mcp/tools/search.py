@@ -16,7 +16,7 @@ from zotero_mcp import search_semantics as _semantics
 from zotero_mcp import utils as _utils
 from zotero_mcp._app import mcp
 from zotero_mcp._context import Context
-from zotero_mcp.client import with_zotero_api_lock
+from zotero_mcp.client import with_zotero_api_lock, with_zotero_read_lock
 from zotero_mcp.local_db import PERSONAL_LIBRARY_GROUP_ID, get_local_zotero_reader
 from zotero_mcp.tools import _helpers
 
@@ -155,7 +155,7 @@ def _exclude_note_content_matches(items: list[dict], qmode: str) -> list[dict]:
     return [item for item in items if not _is_note(item)]
 
 
-@with_zotero_api_lock
+@with_zotero_read_lock
 def _search_with_variants(zot, query: str, qmode: str, limit: int,
                           item_type: str = "-attachment",
                           tag: list[str] | None = None,
@@ -602,7 +602,7 @@ def search_items(
         "Example: zotero_search_by_tag(tag=['to-read'], limit=20)."
     )
 )
-@with_zotero_api_lock
+@with_zotero_read_lock
 def search_by_tag(
     tag: list[str] | list[dict] | str,
     item_type: str = "-attachment",
@@ -716,7 +716,7 @@ def search_by_tag(
         "metadata for that single item."
     )
 )
-@with_zotero_api_lock
+@with_zotero_read_lock
 def search_by_citation_key(
     citekey: str,
     *,
@@ -1286,7 +1286,7 @@ def advanced_search(
         "cognitive therapy for depression', limit=5)."
     )
 )
-@with_zotero_api_lock
+@with_zotero_read_lock
 def semantic_search(
     query: str,
     limit: int = 10,
@@ -1477,7 +1477,7 @@ def semantic_search(
         "papers."
     )
 )
-@with_zotero_api_lock
+@with_zotero_read_lock
 def update_search_database(
     force_rebuild: bool = False,
     limit: int | None = None,

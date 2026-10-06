@@ -38,8 +38,9 @@ import threading
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
-from zotero_mcp import utils as _utils
 from pyzotero.zotero_errors import ResourceNotFoundError
+
+from zotero_mcp import utils as _utils
 
 logger = logging.getLogger(__name__)
 
@@ -564,8 +565,17 @@ class FallbackBackend:
             try:
                 return target(*args, **kwargs)
             except UnsupportedByBackend as exc:
+                # The SQLite path could not answer this query. The API
+                # backend makes an HTTP request to localhost:23119, which
+                # is single-threaded. Acquire the process-wide API lock here
+                # so that tools decorated with @with_zotero_read_lock (which
+                # skip the lock in local mode) remain safe on the rare
+                # fallback path.
+                from zotero_mcp import client as _client
+
                 logger.debug("SQLite cannot answer %s (%s); asking the API", attr, exc)
-                return getattr(self._api_backend(), attr)(*args, **kwargs)
+                with _client.zotero_api_lock():
+                    return getattr(self._api_backend(), attr)(*args, **kwargs)
 
         return call
 

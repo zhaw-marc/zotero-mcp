@@ -131,6 +131,34 @@ def with_zotero_api_lock(func):
     return wrapper
 
 
+def with_zotero_read_lock(func):
+    """Serialize Zotero API access for read-only tools; no-op in SQLite mode.
+
+    In local SQLite mode (``ZOTERO_LOCAL=true`` with a readable
+    ``zotero.sqlite``), read operations go straight to the database and never
+    touch the single-threaded local HTTP API on port 23119.  Acquiring the
+    process-wide RLock for those calls is unnecessary and prevents concurrent
+    reads when Claude issues several tool calls in parallel.
+
+    In API mode the behaviour is identical to :func:`with_zotero_api_lock`.
+
+    **Safety note**: only use this on tools that are fully served by
+    :class:`~zotero_mcp.library.SqliteBackend` in local mode.  Any tool that
+    calls ``get_zotero_client()`` directly, or that may fall through to the
+    ``ApiBackend`` via :class:`~zotero_mcp.library.FallbackBackend`, must keep
+    :func:`with_zotero_api_lock`.  The ``FallbackBackend`` acquires the lock
+    itself when it falls back, so a decorated tool that *occasionally* falls
+    back is still safe — it just loses the no-lock benefit for those calls.
+    """
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        if is_local_mode():
+            return func(*args, **kwargs)
+        with zotero_api_lock():
+            return func(*args, **kwargs)
+    return wrapper
+
+
 # Runtime library override state — set by zotero_switch_library tool.
 # When non-empty, these values override the corresponding environment variables
 # in get_zotero_client(). Keys: "library_id", "library_type".
