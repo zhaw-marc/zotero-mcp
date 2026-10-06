@@ -15,7 +15,7 @@ from zotero_mcp import library as _library
 from zotero_mcp import utils as _utils
 from zotero_mcp._app import mcp
 from zotero_mcp._context import Context
-from zotero_mcp.client import with_zotero_api_lock
+from zotero_mcp.client import with_zotero_api_lock, with_zotero_read_lock
 from zotero_mcp.config import load_config
 from zotero_mcp.extract import extract_file
 from zotero_mcp.tools import _helpers
@@ -94,7 +94,7 @@ def _fulltext_section_heading(
         "format='bibtex')."
     )
 )
-@with_zotero_api_lock
+@with_zotero_read_lock
 def get_item_metadata(
     item_key: str,
     include_abstract: bool = True,
@@ -401,7 +401,7 @@ def get_attachment_path(
         "      - **I. Historiography & Methodology** (Key: XFN79DUT)"
     )
 )
-@with_zotero_api_lock
+@with_zotero_read_lock
 def get_collections(
     limit: int | str | None = None,
     include_trashed: bool = False,
@@ -529,7 +529,7 @@ def _is_top_level_item(item: dict) -> bool:
     return _is_standalone_attachment(data)
 
 
-@with_zotero_api_lock
+@with_zotero_read_lock
 def _build_attachment_extra(info):
     """Build extra_fields dict from attachment_info for format_item_result."""
     if not info:
@@ -549,7 +549,7 @@ def _build_attachment_extra(info):
     name="zotero_get_collection_items",
     description="Get all items in a specific Zotero collection. Supports detail='keys_only' (minimal), 'summary' (default, no abstracts), or 'full' (with abstracts). Includes PDF/notes indicators. include_subcollections=True also returns items filed in collections nested beneath this one (default False, matching Zotero's own 'Search subcollections' checkbox). For a collection larger than limit, page through it with offset (the response names the next offset to pass). TIP: To find papers on a specific topic, use zotero_semantic_search instead — it's faster and returns only relevant results."
 )
-@with_zotero_api_lock
+@with_zotero_read_lock
 def get_collection_items(
     collection_key: str,
     detail: Literal["keys_only", "summary", "full"] = "summary",
@@ -897,7 +897,7 @@ def _format_children_grouped(backend, keys: list[str], ctx: Context) -> str:
         "zotero_get_item_children(item_key=['RTKZQI8E', '9UZR8GXT'])."
     )
 )
-@with_zotero_api_lock
+@with_zotero_read_lock
 def get_item_children(
     item_key: list[str] | str,
     *,
@@ -952,7 +952,7 @@ def get_item_children(
         "  - AI agents"
     )
 )
-@with_zotero_api_lock
+@with_zotero_read_lock
 def get_tags(
     limit: int | str | None = None,
     *,
@@ -1257,7 +1257,7 @@ def switch_library(
         return f"Error switching library: {str(e)}"
 
 
-@with_zotero_api_lock
+@with_zotero_read_lock
 def validate_library_switch(library_id: str, library_type: str) -> str | None:
     """Validate a library switch request before applying it.
 
@@ -1332,7 +1332,7 @@ def validate_library_switch(library_id: str, library_type: str) -> str | None:
         "Example: zotero_list_feeds() → all subscribed feeds."
     ),
 )
-@with_zotero_api_lock
+@with_zotero_read_lock
 def list_feeds(*, ctx: Context) -> str:
     """
     List all RSS feed subscriptions from the local Zotero database.
@@ -1395,7 +1395,7 @@ def list_feeds(*, ctx: Context) -> str:
         "Example: zotero_get_feed_items(library_id=12, limit=30)."
     ),
 )
-@with_zotero_api_lock
+@with_zotero_read_lock
 def get_feed_items(
     library_id: int,
     limit: int = 20,
@@ -1490,7 +1490,7 @@ def get_feed_items(
         "zotero_get_recent(collection_key='MT53KB66', limit=5)."
     )
 )
-@with_zotero_api_lock
+@with_zotero_read_lock
 def get_recent(
     limit: int | str = 10,
     collection_key: str | None = None,
