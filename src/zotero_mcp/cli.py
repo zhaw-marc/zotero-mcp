@@ -796,6 +796,28 @@ def main():
         help="Overwrite existing files. In a shared instructions file only the "
              "managed block changes. No backup is kept.")
 
+    # Persistent library context
+    set_lib_parser = subparsers.add_parser(
+        "set-library",
+        help="Persist a default library so every new session starts there",
+    )
+    set_lib_parser.add_argument(
+        "--library-id", metavar="ID",
+        help="Zotero library ID (numeric, e.g. 5294983 for a group)",
+    )
+    set_lib_parser.add_argument(
+        "--library-type", metavar="TYPE", choices=["user", "group"], default="group",
+        help="Library type: 'user' (personal) or 'group' (default: group)",
+    )
+    set_lib_parser.add_argument(
+        "--personal", action="store_true",
+        help="Switch to personal library (shorthand for --library-id 0 --library-type user)",
+    )
+    subparsers.add_parser(
+        "clear-library",
+        help="Remove the persisted default library (revert to env vars / personal)",
+    )
+
     # Local write authorization command
     authorize_parser = subparsers.add_parser(
         "authorize-local",
@@ -873,6 +895,29 @@ def main():
             print(f"Zotero schema refreshed: version {before} -> {after}.")
         else:
             print(f"Zotero schema already current (version {after}).")
+        sys.exit(0)
+
+    elif args.command == "set-library":
+        from zotero_mcp.client import ZOTERO_MCP_CONFIG_PATH, _persist_library_to_config
+
+        if args.personal:
+            library_id, library_type = "0", "user"
+        elif args.library_id:
+            library_id = args.library_id
+            library_type = args.library_type
+        else:
+            print("Error: provide --library-id <ID> or --personal", file=sys.stderr)
+            sys.exit(1)
+        _persist_library_to_config(library_id, library_type)
+        label = "personal library" if library_type == "user" else f"group library {library_id}"
+        print(f"Default library set to {label}. Saved to {ZOTERO_MCP_CONFIG_PATH}")
+        sys.exit(0)
+
+    elif args.command == "clear-library":
+        from zotero_mcp.client import ZOTERO_MCP_CONFIG_PATH, _clear_library_from_config
+
+        _clear_library_from_config()
+        print(f"Default library cleared. Config: {ZOTERO_MCP_CONFIG_PATH}")
         sys.exit(0)
 
     elif args.command == "authorize-local":

@@ -84,6 +84,11 @@ async def server_lifespan(server: FastMCP):
     """
     sys.stderr.write("Starting Zotero MCP server...\n")
 
+    # Restore the persisted default library (written by switch_library or CLI).
+    from zotero_mcp.client import load_library_from_config
+
+    load_library_from_config()
+
     async def _check_local_connection():
         from zotero_mcp.client import is_local_zotero_available
 

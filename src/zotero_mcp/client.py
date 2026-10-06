@@ -137,20 +137,72 @@ def with_zotero_api_lock(func):
 _active_library_override: dict[str, str] = {}
 
 
-def set_active_library(library_id: str, library_type: str) -> None:
-    """Set runtime library override for all subsequent get_zotero_client() calls."""
+def set_active_library(library_id: str, library_type: str, *, persist: bool = True) -> None:
+    """Set runtime library override for all subsequent get_zotero_client() calls.
+
+    When *persist* is True (the default) the choice is also written to
+    ``~/.config/zotero-mcp/config.json`` so it survives server restarts.
+    Pass ``persist=False`` when loading from config on startup to avoid a
+    pointless round-trip write.
+    """
     _active_library_override["library_id"] = library_id
     _active_library_override["library_type"] = library_type
+    if persist:
+        _persist_library_to_config(library_id, library_type)
 
 
-def clear_active_library() -> None:
+def clear_active_library(*, persist: bool = True) -> None:
     """Clear runtime library override, reverting to environment variable defaults."""
     _active_library_override.clear()
+    if persist:
+        _clear_library_from_config()
 
 
 def get_active_library() -> dict[str, str]:
     """Return the current active library override (empty dict if using defaults)."""
     return dict(_active_library_override)
+
+
+def load_library_from_config() -> None:
+    """Populate _active_library_override from config if not already set by env vars.
+
+    Called once on server startup.  Env vars always win; config is only the
+    fallback when neither ZOTERO_LIBRARY_ID nor a runtime switch is set.
+    """
+    if os.getenv("ZOTERO_LIBRARY_ID"):
+        return  # env var takes precedence — don't override it
+    cfg = load_zotero_mcp_config()
+    dl = cfg.get("default_library") or {}
+    if dl.get("library_id") and dl.get("library_type"):
+        set_active_library(dl["library_id"], dl["library_type"], persist=False)
+
+
+def _persist_library_to_config(library_id: str, library_type: str) -> None:
+    """Write default_library to config.json (read-modify-write)."""
+    try:
+        cfg = _readable_config_for_update()
+        cfg["default_library"] = {"library_id": library_id, "library_type": library_type}
+        ZOTERO_MCP_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with open(ZOTERO_MCP_CONFIG_PATH, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=2)
+            f.write("\n")
+    except OSError as exc:
+        logger.warning("Could not persist default library to config: %s", exc)
+
+
+def _clear_library_from_config() -> None:
+    """Remove default_library from config.json if present."""
+    try:
+        cfg = _readable_config_for_update()
+        if "default_library" not in cfg:
+            return
+        del cfg["default_library"]
+        ZOTERO_MCP_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with open(ZOTERO_MCP_CONFIG_PATH, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=2)
+            f.write("\n")
+    except OSError as exc:
+        logger.warning("Could not clear default library from config: %s", exc)
 
 
 def get_active_group_id() -> int:

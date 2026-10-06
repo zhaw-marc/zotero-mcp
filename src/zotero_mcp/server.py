@@ -27,6 +27,7 @@ from zotero_mcp.client import (  # noqa: F401
     get_web_zotero_client,
     get_write_capabilities,
     get_zotero_client,
+    load_library_from_config,
     set_active_library,
 )
 
@@ -39,13 +40,6 @@ from zotero_mcp.tools._helpers import (  # noqa: F401
     _format_bbt_result,
     _format_citekey_result,
     _get_write_client,
-    resolve_write_client,
-    write_unavailable_message,
-    item_template_for,
-    attach_files,
-    trash_item,
-    format_zotero_error,
-    describe_write_failure,
     _handle_write_response,
     _normalize_arxiv_id,
     _normalize_doi,
@@ -57,6 +51,13 @@ from zotero_mcp.tools._helpers import (  # noqa: F401
     _try_pmc,
     _try_semantic_scholar,
     _try_unpaywall,
+    attach_files,
+    describe_write_failure,
+    format_zotero_error,
+    item_template_for,
+    resolve_write_client,
+    trash_item,
+    write_unavailable_message,
 )
 from zotero_mcp.tools.annotations import (  # noqa: F401
     _batch_resolve_parent_titles,
@@ -128,7 +129,6 @@ from zotero_mcp.tools.write import (  # noqa: F401
     batch_update_tags,
     create_collection,
     delete_collection,
-    update_collection,
     delete_item,
     find_duplicates,
     get_pdf_outline,
@@ -136,9 +136,9 @@ from zotero_mcp.tools.write import (  # noqa: F401
     merge_duplicates,
     remove_item_relation,
     search_collections,
+    update_collection,
     update_item,
 )
-
 from zotero_mcp.toolsets import apply_toolsets
 from zotero_mcp.utils import (  # noqa: F401
     clean_html,
