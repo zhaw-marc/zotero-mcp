@@ -118,11 +118,13 @@ def test_fallback_backend_acquires_lock_on_api_fallback(monkeypatch):
 
     lock_observed_held = []
     api_entered = threading.Event()
+    observer_done = threading.Event()
 
     def api_method():
         api_entered.set()
-        # Give the observer thread a moment to attempt its acquire.
-        time.sleep(0.1)
+        # Wait until the observer has finished its lock check before returning.
+        # This guarantees we still hold the lock when it checks.
+        observer_done.wait(timeout=2.0)
         return "api-result"
 
     def observer():
@@ -135,6 +137,7 @@ def test_fallback_backend_acquires_lock_on_api_fallback(monkeypatch):
             lock_observed_held.append(False)
         else:
             lock_observed_held.append(True)
+        observer_done.set()
 
     sqlite_backend = MagicMock()
     sqlite_backend.some_op.side_effect = UnsupportedByBackend("not in SQLite")
