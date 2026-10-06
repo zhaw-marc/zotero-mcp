@@ -31,6 +31,7 @@ from zotero_mcp.embeddings.providers.gemini import GeminiEmbeddingFunction
 from zotero_mcp.embeddings.providers.huggingface import HuggingFaceEmbeddingFunction
 from zotero_mcp.embeddings.providers.ollama import OllamaEmbeddingFunction
 from zotero_mcp.embeddings.providers.openai import OpenAIEmbeddingFunction
+from zotero_mcp.embeddings.providers.voyage import VoyageEmbeddingFunction
 
 
 @dataclass(frozen=True)
@@ -186,6 +187,16 @@ def _huggingface_ef_factory(config: dict[str, Any]) -> Any:
     )
 
 
+def _voyage_ef_factory(config: dict[str, Any]) -> Any:
+    return VoyageEmbeddingFunction(
+        model_name=config.get("model_name", "voyage-3"),
+        api_key=config.get("api_key"),
+        base_url=config.get("base_url"),
+        request_batch_size=config.get("request_batch_size"),
+        **_remote_pacing_kwargs(config),
+    )
+
+
 def _default_ef_factory(config: dict[str, Any]) -> Any:
     from chromadb.utils import embedding_functions
 
@@ -231,6 +242,20 @@ register_provider(
             api_key_vars=("GEMINI_API_KEY", "GOOGLE_API_KEY"),
             model_var="GEMINI_EMBEDDING_MODEL",
             base_url_var="GEMINI_BASE_URL",
+            requires_api_key=True,
+        ),
+    )
+)
+
+register_provider(
+    ProviderSpec(
+        name="voyage",
+        default_model="voyage-3",
+        ef_factory=_voyage_ef_factory,
+        env=EnvSpec(
+            api_key_vars=("VOYAGE_API_KEY",),
+            model_var="VOYAGE_EMBEDDING_MODEL",
+            base_url_var="VOYAGE_BASE_URL",
             requires_api_key=True,
         ),
     )
