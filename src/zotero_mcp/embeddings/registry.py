@@ -141,6 +141,25 @@ def _openai_ef_factory(config: dict[str, Any]) -> Any:
     )
 
 
+def _openai_compatible_ef_factory(config: dict[str, Any]) -> Any:
+    model = config.get("model_name")
+    if not model:
+        raise ValueError(
+            "The openai-compatible provider requires a model name. "
+            "Set OPENAI_COMPAT_EMBEDDING_MODEL or add model_name to embedding_config."
+        )
+    # Conservative batch size: unknown backends may have stricter limits than OpenAI.
+    batch_size = config.get("request_batch_size", 32)
+    return OpenAIEmbeddingFunction(
+        model_name=model,
+        api_key=config.get("api_key"),
+        base_url=config.get("base_url"),
+        request_batch_size=batch_size,
+        dimensions=config.get("dimensions"),
+        **_remote_pacing_kwargs(config),
+    )
+
+
 def _gemini_ef_factory(config: dict[str, Any]) -> Any:
     return GeminiEmbeddingFunction(
         model_name=config.get("model_name", "gemini-embedding-001"),
@@ -185,6 +204,20 @@ register_provider(
             model_var="OPENAI_EMBEDDING_MODEL",
             base_url_var="OPENAI_BASE_URL",
             requires_api_key=True,
+        ),
+    )
+)
+
+register_provider(
+    ProviderSpec(
+        name="openai-compatible",
+        default_model=None,
+        ef_factory=_openai_compatible_ef_factory,
+        env=EnvSpec(
+            api_key_vars=("OPENAI_COMPAT_API_KEY",),
+            model_var="OPENAI_COMPAT_EMBEDDING_MODEL",
+            base_url_var="OPENAI_COMPAT_BASE_URL",
+            requires_api_key=False,
         ),
     )
 )
@@ -286,18 +319,14 @@ def resolve_provider(
     return PROVIDERS["default"], {}, {}
 
 
-def create_embedding_function(
-    embedding_model: str, embedding_config: dict[str, Any] | None
-) -> Any:
+def create_embedding_function(embedding_model: str, embedding_config: dict[str, Any] | None) -> Any:
     """Construct the embedding function for a configured ``embedding_model``."""
     spec, defaults, overrides = resolve_provider(embedding_model)
     config = {**defaults, **(embedding_config or {}), **overrides}
     return spec.ef_factory(config)
 
 
-def merge_env_config(
-    embedding_model: str, embedding_config: dict[str, Any] | None
-) -> dict[str, Any] | None:
+def merge_env_config(embedding_model: str, embedding_config: dict[str, Any] | None) -> dict[str, Any] | None:
     """Fill gaps in ``embedding_config`` from the environment.
 
     Precedence is unchanged from the blocks this replaces: an explicit
