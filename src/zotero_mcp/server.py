@@ -27,6 +27,7 @@ from zotero_mcp.client import (  # noqa: F401
     get_web_zotero_client,
     get_write_capabilities,
     get_zotero_client,
+    load_library_from_config,
     set_active_library,
     with_zotero_read_lock,
 )
