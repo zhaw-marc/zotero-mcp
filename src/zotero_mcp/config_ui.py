@@ -32,12 +32,18 @@ from urllib.parse import parse_qs, urlparse
 import requests
 
 from zotero_mcp import client as _client
-from zotero_mcp.embeddings.registry import PROVIDERS
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_PORT = 23120
 LOCAL_ZOTERO_URL = "http://localhost:23119/api/"
+
+# Embedding provider names, kept in sync with ``embeddings.registry.PROVIDERS``
+# (enforced by a test). Not imported from there: the registry pulls in chromadb,
+# an optional extra, and the config UI must work on a base install.
+EMBEDDING_PROVIDERS: tuple[str, ...] = (
+    "default", "openai", "openai-compatible", "gemini", "voyage", "ollama", "huggingface",
+)
 
 # Credentials the UI may store (under ``client_env`` in config.json, which the
 # CLI applies to the environment at startup without overriding real env vars).
@@ -138,7 +144,7 @@ def get_state() -> dict[str, Any]:
             "model": emb_cfg.get("model_name", ""),
             "base_url": emb_cfg.get("base_url", ""),
         },
-        "providers": sorted(PROVIDERS),
+        "providers": list(EMBEDDING_PROVIDERS),
         "secrets": secrets_state,
     }
 
@@ -268,7 +274,7 @@ def save_credentials(values: dict[str, Any], clear: list[str] | None = None) -> 
 
 def save_embedding(provider: Any, model: Any = "", base_url: Any = "") -> dict[str, str]:
     provider = str(provider or "")
-    if provider not in PROVIDERS:
+    if provider not in EMBEDDING_PROVIDERS:
         raise ConfigError(f"Unknown embedding provider: {provider!r}")
     model = str(model or "").strip()
     base_url = str(base_url or "").strip()

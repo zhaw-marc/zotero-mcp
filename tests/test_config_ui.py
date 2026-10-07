@@ -201,3 +201,21 @@ def test_post_library_roundtrip_over_http(server, config_path):
 def test_unknown_route_404(server):
     host, token = server
     assert _request(host, "/api/nope", token=token)[0] == 404
+
+
+def test_provider_list_matches_registry():
+    pytest.importorskip("chromadb")
+    from zotero_mcp.embeddings.registry import PROVIDERS
+
+    assert set(config_ui.EMBEDDING_PROVIDERS) == set(PROVIDERS)
+
+
+def test_config_ui_imports_without_chromadb():
+    import subprocess
+    import sys
+
+    code = (
+        "import sys; sys.modules['chromadb'] = None; "
+        "import zotero_mcp.config_ui"
+    )
+    subprocess.run([sys.executable, "-c", code], check=True)
