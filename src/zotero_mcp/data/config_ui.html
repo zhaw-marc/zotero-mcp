@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zotero MCP – Configuration</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #fff; --fg: #1d2330; --muted: #667085; --line: #e3e6ec;
+    --accent: #2f5bea; --ok: #1a7f4b; --bad: #b42318;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #14171f; --card: #1c212c; --fg: #e8ebf2; --muted: #98a2b3; --line: #2b3242;
+            --accent: #7b9bff; --ok: #4ade80; --bad: #f87171; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 0 0 12px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+            padding: 16px; margin-bottom: 16px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+  .row > label { flex: 0 0 170px; font-size: 13px; color: var(--muted); }
+  input, select { flex: 1 1 220px; min-width: 0; padding: 7px 9px; border-radius: 6px;
+                  border: 1px solid var(--line); background: var(--bg); color: var(--fg); font: inherit; }
+  button { padding: 7px 14px; border-radius: 6px; border: 1px solid var(--line);
+           background: var(--card); color: var(--fg); font: inherit; cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.link { border: 0; background: none; color: var(--accent); padding: 0 4px; }
+  .status { display: grid; grid-template-columns: 170px 1fr; gap: 4px 8px; }
+  .status dt { color: var(--muted); font-size: 13px; }
+  .status dd { margin: 0; }
+  .ok { color: var(--ok); } .bad { color: var(--bad); } .muted { color: var(--muted); }
+  ul.libs { list-style: none; margin: 0; padding: 0; }
+  ul.libs li { display: flex; justify-content: space-between; gap: 8px; padding: 8px 10px;
+               border: 1px solid var(--line); border-radius: 6px; margin-bottom: 6px; cursor: pointer; }
+  ul.libs li.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  ul.tree, ul.tree ul { list-style: none; margin: 0; padding-left: 18px; }
+  ul.tree { padding-left: 0; }
+  #toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); padding: 9px 16px;
+           border-radius: 8px; background: var(--fg); color: var(--bg); opacity: 0;
+           transition: opacity .2s; pointer-events: none; max-width: 90vw; }
+  #toast.show { opacity: 1; } #toast.err { background: var(--bad); color: #fff; }
+  .hint { font-size: 13px; color: var(--muted); margin: 4px 0 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Zotero MCP</h1>
+  <p class="sub">Local configuration. Changes are saved to <code id="cfgpath"></code> and apply the
+    next time your MCP client (e.g. Claude) starts the server.</p>
+
+  <section>
+    <h2>Status</h2>
+    <dl class="status" id="status"></dl>
+  </section>
+
+  <section>
+    <h2>Library &amp; collections</h2>
+    <ul class="libs" id="libs"><li class="muted">Loading…</li></ul>
+    <div class="row">
+      <button class="primary" id="savelib" disabled>Save as default</button>
+      <button id="clearlib">Reset to personal library</button>
+    </div>
+    <p class="hint">Collections of the selected library (read-only preview):</p>
+    <ul class="tree" id="tree"></ul>
+  </section>
+
+  <section>
+    <h2>API keys</h2>
+    <div id="secrets"></div>
+    <div class="row"><button class="primary" id="savesecrets">Save keys</button></div>
+    <p class="hint">Leave a field empty to keep the stored value. Keys are stored in the config
+      file (owner-only permissions), never in your shell profile. A key set as a real environment
+      variable takes precedence.</p>
+  </section>
+
+  <section>
+    <h2>Semantic search / embeddings</h2>
+    <div class="row"><label for="provider">Provider</label><select id="provider"></select></div>
+    <div class="row"><label for="model">Model name</label><input id="model" placeholder="provider default"></div>
+    <div class="row"><label for="baseurl">Base URL</label>
+      <input id="baseurl" placeholder="only for openai-compatible / custom endpoints"></div>
+    <div class="row"><button class="primary" id="saveemb">Save embedding settings</button></div>
+    <p class="hint">After changing provider or model, rebuild the index with <code>zotero-mcp update-db --force-rebuild</code>.</p>
+  </section>
+</main>
+<div id="toast"></div>
+
+<script>
+const TOKEN = "__TOKEN__";
+const $ = (id) => document.getElementById(id);
+let state = null, selected = null;
+
+function toast(msg, err) {
+  const t = $("toast"); t.textContent = msg; t.className = "show" + (err ? " err" : "");
+  setTimeout(() => (t.className = ""), 3500);
+}
+async function api(path, body) {
+  const res = await fetch(path, {
+    method: body ? "POST" : "GET",
+    headers: { "X-Config-Token": TOKEN, ...(body ? { "Content-Type": "application/json" } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+const guard = (fn) => async (...a) => { try { await fn(...a); } catch (e) { toast(e.message, true); } };
+function el(tag, text, cls) {
+  const e = document.createElement(tag);
+  if (text != null) e.textContent = text;
+  if (cls) e.className = cls;
+  return e;
+}
+
+function renderStatus() {
+  const s = $("status"); s.replaceChildren();
+  const add = (k, v, cls) => { s.append(el("dt", k), (() => { const d = el("dd", v, cls); return d; })()); };
+  $("cfgpath").textContent = state.config_path;
+  if (state.local_mode) add("Zotero", state.zotero_running ? "✓ running" : "✗ not reachable", state.zotero_running ? "ok" : "bad");
+  else add("Mode", "Web API (ZOTERO_LOCAL not set)");
+  const l = state.library;
+  add("Active library", `${l.library_type === "group" ? "group " + l.library_id : "personal library"} (from ${l.source})`);
+  const e = state.embedding;
+  add("Embeddings", e.provider + (e.model ? " / " + e.model : ""));
+  if (l.source === "env") add("Note", "ZOTERO_LIBRARY_ID is set in the environment and overrides the saved default.", "muted");
+}
+
+function renderLibs(libs) {
+  const ul = $("libs"); ul.replaceChildren();
+  const cur = state.library;
+  for (const lib of libs) {
+    const li = el("li");
+    li.append(el("span", lib.name), el("span", lib.item_count != null ? lib.item_count + " items" : "", "muted"));
+    const isActive = lib.library_type === cur.library_type &&
+      (lib.library_type === "user" || lib.library_id === String(cur.library_id));
+    if (isActive) li.classList.add("active");
+    li.onclick = guard(async () => {
+      selected = lib;
+      ul.querySelectorAll("li").forEach((n) => n.classList.remove("active"));
+      li.classList.add("active");
+      $("savelib").disabled = false;
+      await loadTree(lib);
+    });
+    ul.append(li);
+  }
+}
+
+async function loadTree(lib) {
+  const root = $("tree"); root.replaceChildren(el("li", "Loading…", "muted"));
+  const cols = await api(`/api/collections?library_id=${encodeURIComponent(lib.library_id)}&library_type=${lib.library_type}`);
+  const kids = {};
+  for (const c of cols) (kids[c.parent || ""] ||= []).push(c);
+  const build = (parent) => {
+    const ul = el("ul");
+    for (const c of kids[parent] || []) {
+      const li = el("li", c.name);
+      if (kids[c.key]) li.append(build(c.key));
+      ul.append(li);
+    }
+    return ul;
+  };
+  root.replaceChildren(...(kids[""] ? build("").children : [el("li", "No collections", "muted")]));
+}
+
+function renderSecrets() {
+  const box = $("secrets"); box.replaceChildren();
+  for (const [name, info] of Object.entries(state.secrets)) {
+    const row = el("div", null, "row");
+    const label = el("label", name); label.htmlFor = "sec-" + name;
+    const input = el("input"); input.id = "sec-" + name; input.type = "password";
+    input.autocomplete = "off"; input.dataset.name = name;
+    input.placeholder = info.set ? `${info.preview} (${info.source})` : "not set";
+    const show = el("button", "show", "link");
+    show.onclick = () => { input.type = input.type === "password" ? "text" : "password"; show.textContent = input.type === "password" ? "show" : "hide"; };
+    row.append(label, input, show);
+    if (info.set && info.source === "config") {
+      const del = el("button", "remove", "link");
+      del.onclick = guard(async () => { await api("/api/credentials", { values: {}, clear: [name] }); toast(name + " removed"); await refresh(); });
+      row.append(del);
+    }
+    box.append(row);
+  }
+}
+
+function renderEmbedding() {
+  const sel = $("provider"); sel.replaceChildren();
+  for (const p of state.providers) { const o = el("option", p); o.value = p; sel.append(o); }
+  sel.value = state.embedding.provider;
+  $("model").value = state.embedding.model;
+  $("baseurl").value = state.embedding.base_url;
+}
+
+async function refresh() {
+  state = await api("/api/state");
+  renderStatus(); renderSecrets(); renderEmbedding();
+  try { renderLibs(await api("/api/libraries")); }
+  catch (e) { const li = el("li", "Could not list libraries: " + e.message, "bad"); $("libs").replaceChildren(li); }
+}
+
+$("savelib").onclick = guard(async () => {
+  await api("/api/library", { library_id: selected.library_id, library_type: selected.library_type });
+  toast("Default library saved"); await refresh();
+});
+$("clearlib").onclick = guard(async () => {
+  await api("/api/library", { clear: true }); toast("Default library reset"); await refresh();
+});
+$("savesecrets").onclick = guard(async () => {
+  const values = {};
+  document.querySelectorAll("#secrets input").forEach((i) => { if (i.value.trim()) values[i.dataset.name] = i.value.trim(); });
+  const r = await api("/api/credentials", { values });
+  toast(r.changed.length ? "Saved: " + r.changed.join(", ") : "Nothing to save"); await refresh();
+});
+$("saveemb").onclick = guard(async () => {
+  await api("/api/embedding", { provider: $("provider").value, model: $("model").value, base_url: $("baseurl").value });
+  toast("Embedding settings saved"); await refresh();
+});
+
+guard(refresh)();
+</script>
+</body>
+</html>

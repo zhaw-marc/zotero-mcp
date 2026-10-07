@@ -91,6 +91,10 @@ The base install covers search, reading, annotations, and writes. Heavier featur
 
 Update any time with `zotero-mcp update`.
 
+### Browser config UI
+
+Prefer clicking over editing JSON? `zotero-mcp config-ui` opens a local page (127.0.0.1 only, default port 23120) to pick the default library, store API keys and choose the embedding provider. Everything is saved to `~/.config/zotero-mcp/config.json` and applies the next time your MCP client starts the server.
+
 ## 🪶 MCP server or agent skill?
 
 If your agent has a shell (Claude Code, Cursor, Codex, Windsurf, Gemini CLI, Amp, OpenCode …), one command teaches it to drive `zotero-cli`:

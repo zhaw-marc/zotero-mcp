@@ -818,6 +818,20 @@ def main():
         help="Remove the persisted default library (revert to env vars / personal)",
     )
 
+    # Browser-based configuration UI
+    config_ui_parser = subparsers.add_parser(
+        "config-ui",
+        help="Open a local browser UI to manage libraries, API keys and embeddings",
+    )
+    config_ui_parser.add_argument(
+        "--port", type=int, default=23120,
+        help="Port to listen on (127.0.0.1 only; default: 23120, 0 = any free port)",
+    )
+    config_ui_parser.add_argument(
+        "--no-browser", action="store_true",
+        help="Do not open the browser automatically",
+    )
+
     # Local write authorization command
     authorize_parser = subparsers.add_parser(
         "authorize-local",
@@ -919,6 +933,13 @@ def main():
         _clear_library_from_config()
         print(f"Default library cleared. Config: {ZOTERO_MCP_CONFIG_PATH}")
         sys.exit(0)
+
+    elif args.command == "config-ui":
+        from zotero_mcp import config_ui
+
+        # Reflect ZOTERO_LOCAL etc. from the saved config, as `serve` does.
+        apply_environment_variables(load_standalone_env_vars())
+        sys.exit(config_ui.run(port=args.port, open_browser=not args.no_browser))
 
     elif args.command == "authorize-local":
         setup_zotero_environment()
